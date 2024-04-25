@@ -13,7 +13,15 @@ public class CompanyController {
     public CompanyController(CompanyService companyService) {
         this.companyService = companyService;
     }
-
+ @RequestMapping("/searchForOfficerAndCompany")
+    public ResponseEntity<?> getAll(@RequestBody Company company) {
+        if (company.getCompanyName()!= null) {
+            return ResponseEntity.ok(companyService.searchOfficerAndCompany(company.getCompanyNumber(),company.getCompanyName()));
+        }
+        else {
+            return ResponseEntity.badRequest().body("Either companyName or companyNumber must be provided.");
+        }
+    }
     @RequestMapping("/getCompanyOfficers")
     public ResponseEntity<?> getOfficer(@RequestBody Company company) {
         if (company.getCompanyNumber() != null) {
@@ -32,6 +40,6 @@ public class CompanyController {
             return ResponseEntity.badRequest().body("Either companyName or companyNumber must be provided.");
         }
     }
-
+   
 }
 
