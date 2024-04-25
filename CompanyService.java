@@ -34,6 +34,84 @@ public class CompanyService {
     @Value("${urlcompany}")
     private String urlcompany;
 
+    
+//Combine Companies and officers
+    public Object searchOfficerAndCompany(String companyNumber, String companyName) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("x-api-key", key);
+
+            // Search for the company
+            ResponseEntity<String> response = restTemplate.exchange(urlcompany + companyName, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                ObjectMapper objectMapper = new ObjectMapper();
+                JsonNode rootNode = objectMapper.readTree(response.getBody());
+                JsonNode itemsNode = rootNode.get("items");
+
+                if (itemsNode != null && itemsNode.isArray()) {
+                    List<ObjectNode> companyResults = new ArrayList<>();
+                    for (JsonNode itemNode : itemsNode) {
+                        JsonNode companyStatusNode = itemNode.get("company_status");
+                        if (companyStatusNode != null && "active".equals(companyStatusNode.asText())) {
+                            // If the company is active, fetch its officers
+                            String companyNumber1 = itemNode.get("company_number").asText();
+                            ObjectNode companyResult = objectMapper.createObjectNode();
+                            companyResult.put("company_number", companyNumber1);
+                            companyResult.put("company_type", itemNode.get("company_type").asText());
+                            companyResult.put("title", itemNode.get("title").asText());
+                            companyResult.put("company_status", itemNode.get("company_status").asText());
+                            companyResult.put("date_of_creation", itemNode.get("date_of_creation").asText());
+                            companyResult.set("address", itemNode.get("address"));
+
+                            // Retrieve officers for the company
+                            ResponseEntity<String> officersResponse = restTemplate.exchange(urlofficer + companyNumber, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+                            if (officersResponse.getStatusCode().is2xxSuccessful()) {
+                                JsonNode officersRootNode = objectMapper.readTree(officersResponse.getBody());
+                                JsonNode officersNode = officersRootNode.get("items");
+                                if (officersNode != null && officersNode.isArray()) {
+                                    List<ObjectNode> officersList = new ArrayList<>();
+                                    for (JsonNode officerNode : officersNode) {
+                                        if (!officerNode.has("resigned_on")) {
+                                            ObjectNode officerResult = objectMapper.createObjectNode();
+                                            officerResult.put("name", officerNode.get("name").asText());
+                                            officerResult.put("officer_role", officerNode.get("officer_role").asText());
+                                            officerResult.put("appointed_on", officerNode.get("appointed_on").asText());
+                                            officerResult.set("address", officerNode.get("address"));
+                                            officersList.add(officerResult);
+                                        }
+                                    }
+                                    companyResult.set("officers", objectMapper.valueToTree(officersList));
+                                }
+                            }
+
+                            companyResults.add(companyResult);
+                        }
+                    }
+                    ObjectNode result = objectMapper.createObjectNode();
+                    result.put("total_results", companyResults.size());
+                    result.set("items", objectMapper.valueToTree(companyResults));
+                    return result;
+                } else {
+                    return "No active companies found with the specified name";
+                }
+            } else {
+                return "Failed to retrieve company information: " + response.getStatusCode().toString();
+            }
+        } catch (HttpStatusCodeException e) {
+            // Handle specific HTTP status code errors
+            return "HTTP Error: " + e.getStatusCode() + " - " + e.getStatusText();
+        } catch (IOException e) {
+            // Handle JSON parsing errors
+            log.error("Failed to parse JSON response: " + e.getMessage());
+            return "Failed to parse JSON response";
+        } catch (Exception e) {
+            // Handle other exceptions
+            log.error("An error occurred while processing the request: " + e.getMessage());
+            return "An error occurred while processing the request";
+        }
+    }
+
 
 
     //Search for Company
